@@ -1,146 +1,167 @@
 # Wakefull
 
-**Bloqueador de protector de pantalla y suspensión del sistema**
+**Bloqueador de protector de pantalla simple para XFCE4**
 
-Wakefull previene que tu pantalla se apague, que el sistema entre en suspensión, hibernación o se suspenda al cerrar la tapa del laptop. Es la evolución de caffeine con capacidades superiores.
+Wakefull previene que XFCE4 active el protector de pantalla o ponga el sistema en suspensión. Es una alternativa simple y confiable a caffeine, optimizada específicamente para XFCE4.
 
-## ¿Por qué wakefull es mejor que caffeine?
+## ¿Por qué Wakefull?
 
-| Característica | Caffeine | Wakefull |
-|----------------|----------|----------|
-| Protector de pantalla | ✅ | ✅ |
-| Suspensión del sistema | ❌ | ✅ |
-| Hibernación | ❌ | ✅ |
-| Cierre de tapa | ❌ | ✅ |
-| Wayland completo | ❌ | ✅ |
-| Detección automática | ❌ | ✅ |
-| Método XFCE4 nativo | ❌ | ✅ |
-| Diagnóstico integrado | ❌ | ✅ |
-
-## Comandos
-
-```bash
-wakefull --start     # Iniciar bloqueo (segundo plano)
-wakefull --stop      # Detener bloqueo
-wakefull --status    # Ver estado actual
-wakefull --test      # Probar métodos disponibles
-wakefull --diagnose  # Diagnosticar problemas del entorno
-wakefull --help      # Mostrar ayuda
-wakefull --version   # Ver versión
-```
+- ✅ **Diseñado para XFCE4**: Funciona nativamente con xfce4-power-manager
+- ✅ **Simple y confiable**: Sin dependencias complejas, sin bloqueos
+- ✅ **Múltiples métodos**: Usa varios enfoques para máxima compatibilidad
+- ✅ **Modo daemon**: Se ejecuta en segundo plano de forma eficiente
+- ✅ **Fácil de usar**: Solo 3 comandos principales
 
 ## Instalación
 
-### Dependencias
+### Dependencias requeridas
 ```bash
 # Ubuntu/Debian
-sudo apt install meson ninja-build gcc libx11-dev systemd xdg-utils dbus
+sudo apt install gcc meson ninja-build
 
-# Fedora
-sudo dnf install meson ninja-build gcc libX11-devel systemd xdg-utils dbus
-
-# Arch
-sudo pacman -S meson ninja gcc libx11 systemd xdg-utils dbus
+# Herramientas recomendadas para XFCE4
+sudo apt install x11-xserver-utils xfconf
 ```
 
 ### Compilar e instalar
 ```bash
-# Instalación automática
-./install.sh                    # Para usuario actual
-./install.sh --system           # Para todo el sistema (sudo)
+# Clonar y compilar
+git clone <repositorio>
+cd Wakefull
 
-# O manual
+# Compilar con meson
 meson setup builddir
 meson compile -C builddir
-# El binario está en: builddir/wakefull
+meson install -C builddir
+
+# O usar el script de instalación
+chmod +x install.sh
+./install.sh
+```
+
+## Uso
+
+### Comandos básicos
+```bash
+wakefull --start     # Iniciar daemon (bloquear protector de pantalla)
+wakefull --stop      # Detener daemon
+wakefull --status    # Ver estado actual
+```
+
+### Comandos adicionales
+```bash
+wakefull --foreground    # Ejecutar en primer plano (para debug)
+wakefull --help         # Mostrar ayuda
+wakefull --version      # Ver versión
+```
+
+### Ejemplos
+```bash
+# Uso típico
+wakefull --start
+# Realizar trabajo importante...
+wakefull --stop
+
+# Verificar que está funcionando
+wakefull --status
+
+# Debug (ver qué está haciendo)
+wakefull --foreground
 ```
 
 ## Cómo funciona
 
-Wakefull detecta automáticamente el mejor método disponible:
+Wakefull usa múltiples métodos para mantener XFCE4 activo:
 
-- **XFCE4-específico** (XFCE4): Configuración nativa de xfce4-power-manager y xfce4-screensaver
-- **systemd-inhibit** (recomendado universal): Previene protector + suspensión + tapa
-- **xdg-screensaver + xset**: Para X11, protector + power management  
-- **D-Bus**: Alternativo para varios servicios de desktop
+1. **xset**: Resetea el screensaver y mantiene DPMS activo
+2. **xfconf-query**: Desactiva temporalmente configuraciones de XFCE4
+3. **xdg-screensaver**: Como respaldo para compatibilidad
+4. **Actividad del sistema**: Simula actividad periódica
 
-Se ejecuta como daemon en segundo plano hasta que lo detengas.
+### Para XFCE4 específicamente:
+- Detecta automáticamente el entorno XFCE4
+- Modifica temporalmente `xfce4-power-manager` y `xfce4-screensaver`
+- Restaura configuraciones originales al detenerse
+- Funciona sin interferir con el uso normal del sistema
 
-## Compatibilidad
+## Archivos y logs
 
-### ✅ Funciona completamente
-- **Distribuciones modernas** con systemd (Ubuntu, Fedora, Arch, etc.)
-- **Escritorios principales**: GNOME, KDE, MATE, Cinnamon
-- **XFCE4**: Soporte nativo optimizado con método específico
-- **Gestores de ventana**: i3, Sway, bspwm, awesome, etc.
-- **X11 y Wayland**
-
-### ⚠️ Funcionalidad limitada
-- **Sin systemd**: Solo prevención de protector de pantalla
-- **Sistemas muy antiguos**: Soporte básico con xset
-- **BSD**: Solo xdg-screensaver
-
-## Uso
-
-```bash
-# Ejemplo típico
-wakefull --start
-# Hacer tu trabajo importante...
-wakefull --stop
-
-# En scripts
-wakefull --start
-./mi-tarea-larga.sh
-wakefull --stop
-```
+- **PID file**: `/tmp/wakefull.pid`
+- **Log file**: `/tmp/wakefull.log`
+- **Actividad**: `/tmp/.wakefull_keepalive`
 
 ## Solución de problemas
 
-**Si no funciona:**
+### Si el protector de pantalla sigue activándose:
+
+1. **Verificar que está ejecutándose**:
+   ```bash
+   wakefull --status
+   ```
+
+2. **Revisar herramientas disponibles**:
+   ```bash
+   # Verificar que xset está instalado
+   command -v xset && echo "✓ xset disponible"
+   
+   # Verificar que xfconf-query está instalado
+   command -v xfconf-query && echo "✓ xfconf-query disponible"
+   ```
+
+3. **Ejecutar en modo debug**:
+   ```bash
+   wakefull --foreground
+   ```
+
+4. **Verificar log**:
+   ```bash
+   tail -f /tmp/wakefull.log
+   ```
+
+### Instalar herramientas faltantes:
 ```bash
-# 1. Diagnosticar el sistema y entorno
-wakefull --diagnose
-
-# 2. Verificar qué métodos están disponibles
-wakefull --test
-
-# 3. Instalar herramientas faltantes
 # Ubuntu/Debian
-sudo apt install systemd xdg-utils dbus
+sudo apt install x11-xserver-utils xfconf xdg-utils
 
-# Fedora/RHEL
-sudo dnf install systemd xdg-utils dbus
+# Fedora
+sudo dnf install xorg-x11-server-utils xfce4-conf xdg-utils
 
-# Arch/Manjaro
-sudo pacman -S systemd xdg-utils dbus
-
-# openSUSE
-sudo zypper install systemd xdg-utils dbus-1
-
-# Alpine (funcionalidad limitada)
-sudo apk add xdg-utils dbus
-
-# 4. Si sigue suspendiendo, verificar configuración de energía del sistema
+# Arch Linux
+sudo pacman -S xorg-xset xfconf xdg-utils
 ```
 
-**Casos específicos:**
-- **XFCE4**: Wakefull incluye método nativo que configura automáticamente xfce4-power-manager y xfce4-screensaver
-- **GNOME**: Deshabilitar "Blank screen" en Privacy > Screen Lock
-- **KDE**: Revisar Energy Saving settings  
-- **Wayland sin systemd**: Funcionalidad muy limitada
+## Requisitos del sistema
 
-**Para XFCE4 específicamente:**
-- Wakefull detecta XFCE4 automáticamente y usa método optimizado
-- Modifica temporalmente configuraciones del power manager
-- Restaura configuraciones originales automáticamente al parar
-- Si tienes problemas: `wakefull --diagnose` para ver configuraciones actuales
+- **Sistema operativo**: Linux
+- **Entorno de escritorio**: XFCE4
+- **Display server**: X11
+- **Compilador**: GCC
+- **Build system**: Meson + Ninja
+
+## Desinstalar
+
+```bash
+# Si se instaló con meson
+sudo ninja uninstall -C builddir
+
+# Manual
+sudo rm /usr/local/bin/wakefull
+rm ~/.local/bin/wakefull  # si se instaló como usuario
+```
 
 ## Contribuir
 
-1. Fork el proyecto
-2. Crea tu branch: `git checkout -b mi-feature`
-3. Commit: `git commit -am 'Agregar feature'`
-4. Push: `git push origin mi-feature`
+Este proyecto está enfocado específicamente en XFCE4. Las contribuciones son bienvenidas para:
+
+- Mejorar compatibilidad con diferentes versiones de XFCE4
+- Optimizar el rendimiento
+- Corregir bugs específicos de XFCE4
+- Mejorar documentación
+
+1. Fork el repositorio
+2. Crea un branch: `git checkout -b feature/mejora`
+3. Commit: `git commit -m 'Agregar mejora'`
+4. Push: `git push origin feature/mejora`
 5. Crear Pull Request
 
 ## Licencia
@@ -149,10 +170,4 @@ GPL-3.0-or-later
 
 ---
 
-**Wakefull v2.1.1** - Previene protector de pantalla, suspensión, hibernación y cierre de tapa
-
-### Características destacadas v2.1.1
-- **Soporte nativo para XFCE4**: Método específico que maneja xfce4-power-manager directamente
-- **Diagnóstico integrado**: `--diagnose` para identificar problemas del entorno
-- **Configuración automática**: En XFCE4 se configuran y restauran ajustes temporalmente
-- **Detección mejorada**: Reconoce automáticamente el mejor método por entorno
+**Wakefull v2.2.0** - Bloqueador de protector de pantalla simple y confiable para XFCE4
