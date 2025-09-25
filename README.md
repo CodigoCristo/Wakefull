@@ -14,16 +14,19 @@ Wakefull previene que tu pantalla se apague, que el sistema entre en suspensión
 | Cierre de tapa | ❌ | ✅ |
 | Wayland completo | ❌ | ✅ |
 | Detección automática | ❌ | ✅ |
+| Método XFCE4 nativo | ❌ | ✅ |
+| Diagnóstico integrado | ❌ | ✅ |
 
 ## Comandos
 
 ```bash
-wakefull --start    # Iniciar bloqueo (segundo plano)
-wakefull --stop     # Detener bloqueo
-wakefull --status   # Ver estado actual
-wakefull --test     # Probar métodos disponibles
-wakefull --help     # Mostrar ayuda
-wakefull --version  # Ver versión
+wakefull --start     # Iniciar bloqueo (segundo plano)
+wakefull --stop      # Detener bloqueo
+wakefull --status    # Ver estado actual
+wakefull --test      # Probar métodos disponibles
+wakefull --diagnose  # Diagnosticar problemas del entorno
+wakefull --help      # Mostrar ayuda
+wakefull --version   # Ver versión
 ```
 
 ## Instalación
@@ -56,7 +59,8 @@ meson compile -C builddir
 
 Wakefull detecta automáticamente el mejor método disponible:
 
-- **systemd-inhibit** (recomendado): Previene protector + suspensión + tapa
+- **XFCE4-específico** (XFCE4): Configuración nativa de xfce4-power-manager y xfce4-screensaver
+- **systemd-inhibit** (recomendado universal): Previene protector + suspensión + tapa
 - **xdg-screensaver + xset**: Para X11, protector + power management  
 - **D-Bus**: Alternativo para varios servicios de desktop
 
@@ -66,7 +70,8 @@ Se ejecuta como daemon en segundo plano hasta que lo detengas.
 
 ### ✅ Funciona completamente
 - **Distribuciones modernas** con systemd (Ubuntu, Fedora, Arch, etc.)
-- **Escritorios principales**: GNOME, KDE, XFCE, MATE, Cinnamon
+- **Escritorios principales**: GNOME, KDE, MATE, Cinnamon
+- **XFCE4**: Soporte nativo optimizado con método específico
 - **Gestores de ventana**: i3, Sway, bspwm, awesome, etc.
 - **X11 y Wayland**
 
@@ -93,10 +98,13 @@ wakefull --stop
 
 **Si no funciona:**
 ```bash
-# 1. Verificar qué está disponible
+# 1. Diagnosticar el sistema y entorno
+wakefull --diagnose
+
+# 2. Verificar qué métodos están disponibles
 wakefull --test
 
-# 2. Instalar herramientas faltantes
+# 3. Instalar herramientas faltantes
 # Ubuntu/Debian
 sudo apt install systemd xdg-utils dbus
 
@@ -112,13 +120,20 @@ sudo zypper install systemd xdg-utils dbus-1
 # Alpine (funcionalidad limitada)
 sudo apk add xdg-utils dbus
 
-# 3. Si sigue suspendiendo, verificar configuración de energía del sistema
+# 4. Si sigue suspendiendo, verificar configuración de energía del sistema
 ```
 
 **Casos específicos:**
+- **XFCE4**: Wakefull incluye método nativo que configura automáticamente xfce4-power-manager y xfce4-screensaver
 - **GNOME**: Deshabilitar "Blank screen" en Privacy > Screen Lock
 - **KDE**: Revisar Energy Saving settings  
 - **Wayland sin systemd**: Funcionalidad muy limitada
+
+**Para XFCE4 específicamente:**
+- Wakefull detecta XFCE4 automáticamente y usa método optimizado
+- Modifica temporalmente configuraciones del power manager
+- Restaura configuraciones originales automáticamente al parar
+- Si tienes problemas: `wakefull --diagnose` para ver configuraciones actuales
 
 ## Contribuir
 
@@ -134,4 +149,10 @@ GPL-3.0-or-later
 
 ---
 
-**Wakefull v2.1.0** - Previene protector de pantalla, suspensión, hibernación y cierre de tapa
+**Wakefull v2.1.1** - Previene protector de pantalla, suspensión, hibernación y cierre de tapa
+
+### Características destacadas v2.1.1
+- **Soporte nativo para XFCE4**: Método específico que maneja xfce4-power-manager directamente
+- **Diagnóstico integrado**: `--diagnose` para identificar problemas del entorno
+- **Configuración automática**: En XFCE4 se configuran y restauran ajustes temporalmente
+- **Detección mejorada**: Reconoce automáticamente el mejor método por entorno

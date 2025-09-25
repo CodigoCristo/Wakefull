@@ -37,6 +37,25 @@ print_header() {
     echo ""
 }
 
+# Detectar si estamos en XFCE4
+is_xfce4() {
+    local desktop=$(echo "${XDG_CURRENT_DESKTOP:-}" | tr '[:upper:]' '[:lower:]')
+    local session=$(echo "${DESKTOP_SESSION:-}" | tr '[:upper:]' '[:lower:]')
+
+    if [[ "$desktop" == *"xfce"* ]] || [[ "$session" == *"xfce"* ]]; then
+        return 0
+    fi
+
+    # Verificar si xfconf-query funciona
+    if command -v xfconf-query >/dev/null 2>&1; then
+        if xfconf-query -c xfce4-session -l >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
 # Verificar dependencias de build
 check_build_deps() {
     print_info "Verificando dependencias de compilación..."
@@ -88,9 +107,27 @@ check_runtime_deps() {
     print_info "Verificando herramientas de inhibición..."
 
     local methods=0
+    local xfce4_detected=false
+
+    # Detectar XFCE4
+    if is_xfce4; then
+        xfce4_detected=true
+        print_success "XFCE4 detectado"
+
+        if command -v xfconf-query >/dev/null 2>&1; then
+            print_success "xfconf-query disponible (método XFCE4 específico habilitado)"
+            methods=$((methods + 1))
+        else
+            print_warning "xfconf-query no disponible - instala: sudo apt install xfconf"
+        fi
+    fi
 
     if command -v systemd-inhibit >/dev/null 2>&1; then
-        print_success "systemd-inhibit disponible (recomendado)"
+        if [ "$xfce4_detected" = true ]; then
+            print_success "systemd-inhibit disponible (respaldo universal)"
+        else
+            print_success "systemd-inhibit disponible (recomendado)"
+        fi
         methods=$((methods + 1))
     fi
 
@@ -104,9 +141,20 @@ check_runtime_deps() {
         methods=$((methods + 1))
     fi
 
+    # Recomendaciones específicas para XFCE4
+    if [ "$xfce4_detected" = true ]; then
+        echo ""
+        print_info "Recomendaciones para XFCE4:"
+        print_info "• Wakefull incluye método específico optimizado para XFCE4"
+        print_info "• Se configurará automáticamente para máxima compatibilidad"
+    fi
+
     if [ $methods -eq 0 ]; then
         print_warning "No hay métodos de inhibición disponibles"
         print_info "Instala: sudo apt install systemd xdg-utils dbus"
+        if [ "$xfce4_detected" = true ]; then
+            print_info "Para XFCE4 específicamente: sudo apt install xfconf"
+        fi
     else
         print_success "$methods método(s) de inhibición disponible(s)"
     fi
@@ -386,6 +434,17 @@ main() {
     print_info "  wakefull --help     # Mostrar ayuda"
     print_info "  wakefull --version  # Ver versión"
     echo ""
+
+    # Instrucciones específicas para XFCE4
+    if is_xfce4; then
+        print_info "Instrucciones específicas para XFCE4:"
+        print_info "• Wakefull detectará y configurará XFCE4 automáticamente"
+        print_info "• Incluye manejo nativo de xfce4-power-manager y xfce4-screensaver"
+        print_info "• Las configuraciones se restauran automáticamente al parar"
+        echo ""
+        print_success "XFCE4 totalmente soportado con método específico integrado"
+        echo ""
+    fi
 }
 
 # Ejecutar función principal
