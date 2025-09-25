@@ -1,14 +1,16 @@
 # Wakefull
 
-**Bloqueador de protector de pantalla simple para XFCE4**
+**Bloqueador completo de protector de pantalla, suspensión y hibernación para XFCE4**
 
-Wakefull previene que XFCE4 active el protector de pantalla o ponga el sistema en suspensión. Es una alternativa simple y confiable a caffeine, optimizada específicamente para XFCE4.
+Wakefull previene que XFCE4 active el protector de pantalla, ponga el sistema en suspensión, hibernación o se suspenda al cerrar la tapa del laptop. Es una alternativa completa y confiable a caffeine, optimizada específicamente para XFCE4.
 
 ## ¿Por qué Wakefull?
 
-- ✅ **Diseñado para XFCE4**: Funciona nativamente con xfce4-power-manager
+- ✅ **Protección completa**: Previene protector de pantalla, suspensión, hibernación y cierre de tapa
+- ✅ **Diseñado para XFCE4**: Funciona nativamente con xfce4-power-manager y xfce4-screensaver
+- ✅ **Múltiples métodos**: xset, xfconf-query, systemd-inhibit, D-Bus y xdg-screensaver
 - ✅ **Simple y confiable**: Sin dependencias complejas, sin bloqueos
-- ✅ **Múltiples métodos**: Usa varios enfoques para máxima compatibilidad
+- ✅ **Restauración automática**: Vuelve a la configuración original al detenerse
 - ✅ **Modo daemon**: Se ejecuta en segundo plano de forma eficiente
 - ✅ **Fácil de usar**: Solo 3 comandos principales
 
@@ -19,8 +21,8 @@ Wakefull previene que XFCE4 active el protector de pantalla o ponga el sistema e
 # Ubuntu/Debian
 sudo apt install gcc meson ninja-build
 
-# Herramientas recomendadas para XFCE4
-sudo apt install x11-xserver-utils xfconf
+# Herramientas recomendadas para funcionalidad completa
+sudo apt install x11-xserver-utils xfconf systemd dbus xdg-utils
 ```
 
 ### Compilar e instalar
@@ -71,18 +73,34 @@ wakefull --foreground
 
 ## Cómo funciona
 
-Wakefull usa múltiples métodos para mantener XFCE4 activo:
+Wakefull usa múltiples métodos simultáneos para protección completa:
 
-1. **xset**: Resetea el screensaver y mantiene DPMS activo
-2. **xfconf-query**: Desactiva temporalmente configuraciones de XFCE4
-3. **xdg-screensaver**: Como respaldo para compatibilidad
-4. **Actividad del sistema**: Simula actividad periódica
+### 1. **Control completo de XFCE4** (xfconf-query)
+- Desactiva `xfce4-screensaver` temporalmente
+- Configura `xfce4-power-manager` para prevenir:
+  - Blank screen y DPMS
+  - Suspensión por inactividad
+  - Hibernación automática
+  - Suspensión por cierre de tapa
+- Modifica configuraciones de `xfce4-session`
 
-### Para XFCE4 específicamente:
-- Detecta automáticamente el entorno XFCE4
-- Modifica temporalmente `xfce4-power-manager` y `xfce4-screensaver`
-- Restaura configuraciones originales al detenerse
-- Funciona sin interferir con el uso normal del sistema
+### 2. **Inhibición universal** (systemd-inhibit)
+- Bloquea: `sleep`, `idle`, `handle-lid-switch`, `handle-power-key`
+- Funciona a nivel del sistema operativo
+- Complementa las configuraciones de XFCE4
+
+### 3. **Control de X11** (xset)
+- Resetea screensaver continuamente
+- Fuerza DPMS encendido
+- Desactiva ahorro de energía de pantalla
+
+### 4. **Métodos adicionales**
+- **D-Bus**: Simula actividad de usuario y previene power management
+- **xdg-screensaver**: Resetea screensaver como respaldo
+- **Actividad del sistema**: Crea actividad periódica
+
+### Restauración automática:
+Al detenerse, wakefull restaura automáticamente todas las configuraciones originales de XFCE4, dejando el sistema como estaba antes.
 
 ## Archivos y logs
 
@@ -137,6 +155,21 @@ sudo pacman -S xorg-xset xfconf xdg-utils
 - **Display server**: X11
 - **Compilador**: GCC
 - **Build system**: Meson + Ninja
+- **Herramientas recomendadas**: systemd, xset, xfconf-query, dbus-send
+
+## Funcionalidades bloqueadas
+
+Wakefull previene **todas** estas acciones cuando está activo:
+
+- ✅ **Protector de pantalla** (xfce4-screensaver)
+- ✅ **Bloqueo automático de pantalla** por inactividad
+- ✅ **Blank screen** (pantalla en negro)
+- ✅ **DPMS** (apagado de monitor)
+- ✅ **Suspensión del sistema** (sleep)
+- ✅ **Hibernación** (hibernate)
+- ✅ **Suspensión por cierre de tapa** en laptops
+- ✅ **Suspensión por botón de power**
+- ✅ **Suspensión por inactividad** (timeout)
 
 ## Desinstalar
 
@@ -170,4 +203,4 @@ GPL-3.0-or-later
 
 ---
 
-**Wakefull v2.2.0** - Bloqueador de protector de pantalla simple y confiable para XFCE4
+**Wakefull v2.2.0** - Protección completa contra protector de pantalla, suspensión, hibernación y cierre de tapa para XFCE4

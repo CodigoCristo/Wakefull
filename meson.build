@@ -9,7 +9,7 @@ project('wakefull', 'c',
 )
 
 # Información del proyecto
-project_description = 'Bloqueador simple de protector de pantalla para XFCE4'
+project_description = 'Bloqueador completo de protector de pantalla, suspensión, hibernación y cierre de tapa para XFCE4'
 
 # Verificar herramientas opcionales disponibles en el sistema
 systemd_inhibit = find_program('systemd-inhibit', required: false)
@@ -56,4 +56,5 @@ endif
 
 message('')
 message('El programa funcionará con las herramientas disponibles.')
-message('Para XFCE4, se recomienda tener xset y xfconf-query instalados.')
+message('Para funcionalidad completa se recomienda: xset, xfconf-query, systemd, dbus-send')
+message('Previene: protector de pantalla, suspensión, hibernación y cierre de tapa.')
