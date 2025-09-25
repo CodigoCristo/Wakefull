@@ -328,56 +328,105 @@ void configure_xfce4_settings(int enable_prevention) {
 
 // Iniciar inhibición específica para XFCE4
 int start_xfce4_inhibition(void) {
+    printf("Iniciando método XFCE4-específico...\n");
+    
+    // Verificar herramientas esenciales
+    if (!command_exists("xfconf-query")) {
+        printf("Error: xfconf-query no disponible, usando fallback\n");
+        return start_systemd_inhibition(); // Fallback a systemd
+    }
+    
     pid_t pid = fork();
     
     if (pid == -1) {
-        perror("fork");
-        return -1;
+        perror("Error en fork");
+        return start_systemd_inhibition(); // Fallback
     } else if (pid == 0) {
         // Proceso hijo - configurar XFCE4 específicamente
-        printf("Configurando XFCE4 para prevenir bloqueo...\n");
+        printf("Configurando XFCE4 para prevenir bloqueo (PID: %d)...\n", getpid());
         
-        // Guardar configuraciones actuales para restaurar después
-        system("mkdir -p /tmp/wakefull-backup >/dev/null 2>&1");
+        // Redirigir output para LiveCD
+        freopen("/tmp/wakefull-xfce4.log", "w", stdout);
+        freopen("/tmp/wakefull-xfce4.log", "w", stderr);
+        
+        printf("=== Wakefull XFCE4 inhibitor iniciado ===\n");
+        time_t now = time(NULL);
+        printf("Tiempo: %s", ctime(&now));
+        
+        // Crear directorio de backup de forma más robusta
+        if (system("mkdir -p /tmp/wakefull-backup 2>/dev/null") != 0) {
+            printf("Advertencia: No se pudo crear directorio backup\n");
+        }
+        
+        // Guardar configuraciones con mejor manejo de errores
+        printf("Guardando configuraciones actuales...\n");
         system("xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/dpms-enabled > /tmp/wakefull-backup/dpms-enabled 2>/dev/null || echo 'true' > /tmp/wakefull-backup/dpms-enabled");
         system("xfconf-query -c xfce4-screensaver -p /saver/enabled > /tmp/wakefull-backup/saver-enabled 2>/dev/null || echo 'true' > /tmp/wakefull-backup/saver-enabled");
         system("xfconf-query -c xfce4-session -p /shutdown/LockScreen > /tmp/wakefull-backup/lock-screen 2>/dev/null || echo 'true' > /tmp/wakefull-backup/lock-screen");
         
-        // Aplicar configuraciones iniciales
+        // Aplicar configuraciones iniciales con más logging
+        printf("Aplicando configuraciones anti-bloqueo...\n");
         configure_xfce4_settings(1);
         
+        printf("Entrando en bucle de mantenimiento...\n");
+        int loop_counter = 0;
+        
         while (1) {
-            // Reaplicar configuraciones periódicamente (por si se resetean)
-            configure_xfce4_settings(1);
+            loop_counter++;
+            printf("Ciclo %d: Manteniendo configuraciones activas...\n", loop_counter);
             
-            // Métodos tradicionales como respaldo
-            system("xset s off >/dev/null 2>&1");
-            system("xset -dpms >/dev/null 2>&1");
-            system("xset s noblank >/dev/null 2>&1");
-            system("xset s reset >/dev/null 2>&1");
+            // Reaplicar configuraciones cada 5 ciclos
+            if (loop_counter % 5 == 0) {
+                printf("Reaplicando configuraciones XFCE4...\n");
+                configure_xfce4_settings(1);
+            }
             
-            // Simular actividad de usuario más realista
-            system("xdotool key shift >/dev/null 2>&1 || true");
-            system("xdotool mousemove_relative 1 1 >/dev/null 2>&1 || true");
-            system("xdotool mousemove_relative -- -1 -1 >/dev/null 2>&1 || true");
+            // Métodos tradicionales como respaldo (siempre)
+            if (system("xset s off 2>/dev/null") != 0) {
+                printf("Advertencia: xset s off falló\n");
+            }
+            if (system("xset -dpms 2>/dev/null") != 0) {
+                printf("Advertencia: xset -dpms falló\n");
+            }
+            system("xset s noblank 2>/dev/null");
+            system("xset s reset 2>/dev/null");
+            
+            // Simular actividad de usuario con logging
+            if (loop_counter % 10 == 0) {
+                printf("Simulando actividad de usuario...\n");
+                system("xdotool key shift 2>/dev/null || printf 'xdotool no disponible\\n'");
+            }
             
             // D-Bus para XFCE4 y otros servicios
-            system("dbus-send --session --type=method_call --dest=org.xfce.PowerManager /org/xfce/PowerManager org.xfce.PowerManager.Inhibit string:'wakefull' string:'Preventing screen lock' >/dev/null 2>&1");
+            system("dbus-send --session --type=method_call --dest=org.xfce.PowerManager /org/xfce/PowerManager org.xfce.PowerManager.Inhibit string:'wakefull' string:'Preventing screen lock' 2>/dev/null");
+            system("dbus-send --session --type=method_call --dest=org.freedesktop.ScreenSaver /org/freedesktop/ScreenSaver org.freedesktop.ScreenSaver.SimulateUserActivity 2>/dev/null");
             
-            // Inhibir también el screensaver genérico
-            system("dbus-send --session --type=method_call --dest=org.freedesktop.ScreenSaver /org/freedesktop/ScreenSaver org.freedesktop.ScreenSaver.SimulateUserActivity >/dev/null 2>&1");
+            // Verificar si el proceso padre sigue vivo
+            if (getppid() == 1) {
+                printf("Proceso padre terminó, saliendo...\n");
+                break;
+            }
             
-            // Prevenir suspensión adicional via logind
-            system("dbus-send --system --type=method_call --dest=org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager.Inhibit string:sleep string:idle string:handle-power-key string:handle-suspend-key string:wakefull string:'Preventing system suspend' int32:0 >/dev/null 2>&1 || true");
-            
+            printf("Ciclo %d completado, durmiendo 30s...\n", loop_counter);
             sleep(30);
         }
+        
+        printf("Proceso XFCE4 inhibitor terminando...\n");
+        exit(0);
     } else {
-        // Proceso padre
-        inhibit_pid = pid;
-        printf("Inhibición específica para XFCE4 iniciada (PID: %d)\n", pid);
-        printf("Configuraciones de XFCE4 temporalmente modificadas\n");
-        return 0;
+        // Proceso padre - verificar que el hijo inició correctamente
+        sleep(2); // Dar tiempo al proceso hijo
+        
+        if (kill(pid, 0) == 0) {
+            inhibit_pid = pid;
+            printf("Inhibición específica para XFCE4 iniciada (PID: %d)\n", pid);
+            printf("Configuraciones de XFCE4 temporalmente modificadas\n");
+            printf("Log disponible en: /tmp/wakefull-xfce4.log\n");
+            return 0;
+        } else {
+            printf("Error: El proceso hijo terminó inmediatamente, usando fallback\n");
+            return start_systemd_inhibition();
+        }
     }
 }
 
@@ -932,14 +981,15 @@ int start_wakefull_mode(int debug_mode) {
         return 0;
     }
     
-    // Convertirse en daemon
+    // Convertirse en daemon con mejor manejo de errores
     pid_t pid = fork();
     if (pid == -1) {
-        perror("fork");
+        perror("Error en fork principal");
         return -1;
     } else if (pid > 0) {
-        // Proceso padre - esperar un poco para verificar que el daemon inició correctamente
-        sleep(2);
+        // Proceso padre - esperar más tiempo para verificación en LiveCD
+        printf("Esperando inicio del daemon...\n");
+        sleep(3);
         int new_stored_pid;
         int new_status = check_wakefull_status(&new_stored_pid);
         if (new_status == 1) {
@@ -955,71 +1005,113 @@ int start_wakefull_mode(int debug_mode) {
             printf("✓ wakefull iniciado correctamente (PID: %d)\n", new_stored_pid);
             printf("✓ Método de inhibición: %s\n", method_name);
             printf("✓ Protector de pantalla y suspensión bloqueados\n");
+            printf("\nArchivos de log:\n");
+            printf("  Principal: /tmp/wakefull.log\n");
+            if (method == METHOD_XFCE4_SPECIFIC) {
+                printf("  XFCE4: /tmp/wakefull-xfce4.log\n");
+            }
             printf("\nPara detener: wakefull --stop\n");
             printf("Para estado: wakefull --status\n");
             return 0;
         } else {
             printf("✗ Error: wakefull no pudo iniciarse correctamente\n");
+            printf("Verifica logs en: /tmp/wakefull.log\n");
             printf("Ejecuta 'wakefull --diagnose' para más información\n");
             return -1;
         }
     }
     
     // Proceso hijo - continúa como daemon
-    setsid(); // Nueva sesión
+    if (setsid() == -1) {
+        perror("Error en setsid");
+        exit(1);
+    }
     
-    // Redirigir stdout/stderr para logging
-    freopen("/tmp/wakefull.log", "a", stdout);
-    freopen("/tmp/wakefull.log", "a", stderr);
+    // Cambiar directorio de trabajo a /tmp para LiveCD
+    if (chdir("/tmp") == -1) {
+        perror("Error en chdir");
+        exit(1);
+    }
+    
+    // Redirigir stdout/stderr para logging robusto
+    if (freopen("/tmp/wakefull.log", "a", stdout) == NULL ||
+        freopen("/tmp/wakefull.log", "a", stderr) == NULL) {
+        exit(1);
+    }
     
     printf("\n=== Wakefull daemon iniciado ===\n");
     time_t now = time(NULL);
     printf("Tiempo: %s", ctime(&now));
+    printf("PID: %d\n", getpid());
+    printf("PPID: %d\n", getppid());
     
-    // Guardar PID
+    // Guardar PID con verificación
     if (save_pid() != 0) {
-        printf("Error: No se pudo guardar PID\n");
+        printf("Error crítico: No se pudo guardar PID\n");
         exit(1);
     }
+    printf("PID guardado en: %s\n", PID_FILE);
     
     // Configurar señales
     setup_signals();
+    printf("Señales configuradas\n");
     
-    // Iniciar inhibición
-    if (start_inhibition() != 0) {
-        printf("Error: No se pudo iniciar inhibición\n");
+    // Iniciar inhibición con retry
+    int retry_count = 0;
+    while (retry_count < 3) {
+        printf("Intento %d de iniciar inhibición...\n", retry_count + 1);
+        if (start_inhibition() == 0) {
+            break;
+        }
+        retry_count++;
+        if (retry_count < 3) {
+            printf("Error en intento %d, reintentando en 2s...\n", retry_count);
+            sleep(2);
+        }
+    }
+    
+    if (retry_count >= 3) {
+        printf("Error crítico: No se pudo iniciar inhibición después de 3 intentos\n");
         cleanup();
         exit(1);
     }
     
-    printf("Inhibición iniciada exitosamente con método: %d\n", current_method);
+    printf("Inhibición iniciada exitosamente con método: %d (PID: %d)\n", current_method, inhibit_pid);
     
     // Bucle principal - mantener vivo el daemon
     int health_check_counter = 0;
+    int total_cycles = 0;
     while (running) {
         sleep(1);
         health_check_counter++;
+        total_cycles++;
         
         // Health check cada 30 segundos
         if (health_check_counter >= HEALTH_CHECK_INTERVAL) {
             health_check_counter = 0;
             
+            printf("=== Health Check (ciclo %d) ===\n", total_cycles / HEALTH_CHECK_INTERVAL);
+            
             // Verificar si el proceso de inhibición sigue activo
             if (inhibit_pid > 0 && kill(inhibit_pid, 0) != 0) {
-                printf("Proceso de inhibición terminó inesperadamente (PID: %d), reiniciando...\n", inhibit_pid);
+                printf("ERROR: Proceso de inhibición terminó (PID: %d), reiniciando...\n", inhibit_pid);
                 if (start_inhibition() != 0) {
-                    printf("Error crítico: No se pudo reiniciar inhibición\n");
+                    printf("ERROR CRÍTICO: No se pudo reiniciar inhibición\n");
                     break;
+                } else {
+                    printf("Inhibición reiniciada exitosamente (nuevo PID: %d)\n", inhibit_pid);
                 }
+            } else {
+                printf("Health check OK - Inhibición activa (método: %d, PID: %d)\n", 
+                       current_method, inhibit_pid);
             }
-            
-            printf("Health check OK - Inhibición activa (método: %d, PID: %d)\n", 
-                   current_method, inhibit_pid);
         }
     }
     
-    printf("Saliendo del bucle principal...\n");
+    printf("Daemon terminando (señal recibida)...\n");
     cleanup();
+    printf("Daemon terminado correctamente\n");
+    exit(0);
     return 0;
 }
 
