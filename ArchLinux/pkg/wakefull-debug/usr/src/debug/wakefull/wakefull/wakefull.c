@@ -428,51 +428,15 @@ int stop_inhibition(void) {
 }
 
 // Verificar si wakefull está ejecutándose
-// Verificar estado sin hacer limpieza (para diagnóstico)
-int check_wakefull_status(int *stored_pid) {
-    FILE *file = fopen(PID_FILE, "r");
-    if (!file) {
-        *stored_pid = 0;
-        // Verificar si hay procesos wakefull por nombre sin limpiar
-        char cmd[256];
-        snprintf(cmd, sizeof(cmd), "pgrep -f 'wakefull --start' | head -1");
-        FILE *fp = popen(cmd, "r");
-        if (fp) {
-            char pid_str[32];
-            if (fgets(pid_str, sizeof(pid_str), fp)) {
-                *stored_pid = atoi(pid_str);
-                pclose(fp);
-                return 2; // Proceso existe pero sin PID file
-            }
-            pclose(fp);
-        }
-        return 0; // No hay archivo PID ni proceso
-    }
-    
-    if (fscanf(file, "%d", stored_pid) != 1 || *stored_pid <= 0) {
-        fclose(file);
-        *stored_pid = 0;
-        return -1; // Archivo PID corrupto
-    }
-    fclose(file);
-    
-    // Verificar si el proceso existe
-    if (kill(*stored_pid, 0) == 0) {
-        return 1; // PID file existe y proceso activo
-    } else {
-        return -1; // PID file existe pero proceso muerto
-    }
-}
-
 int is_wakefull_running(void) {
     FILE *file = fopen(PID_FILE, "r");
     if (!file) {
         // Verificar si hay procesos wakefull por nombre como fallback
         char cmd[256];
-        snprintf(cmd, sizeof(cmd), "pgrep -f 'wakefull --start' >/dev/null 2>&1");
+        snprintf(cmd, sizeof(cmd), "pgrep -f '%s' >/dev/null 2>&1", PROGRAM_NAME);
         if (system(cmd) == 0) {
             printf("Advertencia: Proceso wakefull detectado sin archivo PID, limpiando...\n");
-            system("pkill -f 'wakefull --start' 2>/dev/null");
+            system("pkill -f wakefull 2>/dev/null");
             sleep(1);
         }
         return 0; // No hay archivo PID, no está ejecutándose
@@ -634,29 +598,19 @@ void diagnose_system(void) {
     
     // Estado actual de wakefull
     printf("\nEstado actual:\n");
-    
-    int stored_pid;
-    int status = check_wakefull_status(&stored_pid);
-    
-    switch (status) {
-        case 1:
-            printf("  ✓ wakefull está ejecutándose (PID: %d)\n", stored_pid);
-            break;
-        case 2:
-            printf("  ⚠ Proceso wakefull detectado sin PID file (PID: %d)\n", stored_pid);
-            printf("    Ejecuta 'wakefull --stop' para limpiar\n");
-            break;
-        case -1:
-            if (stored_pid > 0) {
-                printf("  ⚠ PID file existe pero proceso no activo (PID: %d)\n", stored_pid);
-            } else {
-                printf("  ⚠ PID file corrupto\n");
+    if (is_wakefull_running()) {
+        printf("  ✓ wakefull está ejecutándose\n");
+        // Leer el PID si existe
+        FILE *fp = fopen(PID_FILE, "r");
+        if (fp) {
+            int pid;
+            if (fscanf(fp, "%d", &pid) == 1) {
+                printf("    PID: %d\n", pid);
             }
-            printf("    Ejecuta 'wakefull --stop' para limpiar\n");
-            break;
-        default:
-            printf("  ✗ wakefull no está ejecutándose\n");
-            break;
+            fclose(fp);
+        }
+    } else {
+        printf("  ✗ wakefull no está ejecutándose\n");
     }
     
     // Configuraciones específicas por entorno
