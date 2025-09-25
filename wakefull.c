@@ -823,10 +823,26 @@ void setup_signals(void) {
 
 // Iniciar wakefull en segundo plano
 int start_wakefull(void) {
-    int running_pid = is_wakefull_running();
-    if (running_pid > 0) {
-        printf("wakefull ya está ejecutándose (PID: %d)\n", running_pid);
+    // Verificar si ya está ejecutándose sin hacer limpieza automática
+    int stored_pid;
+    int status = check_wakefull_status(&stored_pid);
+    if (status == 1) {
+        printf("wakefull ya está ejecutándose (PID: %d)\n", stored_pid);
         return 1;
+    }
+    
+    // Limpiar estado previo si es necesario
+    if (status == -1 || status == 2) {
+        printf("Limpiando estado previo...\n");
+        if (status == 2) {
+            // Proceso huérfano, terminarlo
+            if (stored_pid > 0) {
+                kill(stored_pid, SIGTERM);
+                sleep(1);
+            }
+        }
+        unlink(PID_FILE);
+        unlink(LOCK_FILE);
     }
     
     printf("Iniciando wakefull...\n");
@@ -846,13 +862,28 @@ int start_wakefull(void) {
         return -1;
     } else if (pid > 0) {
         // Proceso padre - esperar un poco para verificar que el daemon inició correctamente
-        sleep(1);
-        int new_running_pid = is_wakefull_running();
-        if (new_running_pid > 0) {
-            printf("wakefull iniciado correctamente en segundo plano (PID: %d)\n", new_running_pid);
+        sleep(2);
+        int new_stored_pid;
+        int new_status = check_wakefull_status(&new_stored_pid);
+        if (new_status == 1) {
+            const char* method_name = "desconocido";
+            inhibit_method_t method = detect_best_method();
+            switch (method) {
+                case METHOD_SYSTEMD_INHIBIT: method_name = "systemd-inhibit"; break;
+                case METHOD_XDG_SCREENSAVER: method_name = "xdg-screensaver"; break;
+                case METHOD_DBUS_SCREENSAVER: method_name = "D-Bus"; break;
+                case METHOD_XFCE4_SPECIFIC: method_name = "XFCE4-específico"; break;
+                default: method_name = "desconocido"; break;
+            }
+            printf("✓ wakefull iniciado correctamente (PID: %d)\n", new_stored_pid);
+            printf("✓ Método de inhibición: %s\n", method_name);
+            printf("✓ Protector de pantalla y suspensión bloqueados\n");
+            printf("\nPara detener: wakefull --stop\n");
+            printf("Para estado: wakefull --status\n");
             return 0;
         } else {
-            printf("Error: wakefull no pudo iniciarse correctamente\n");
+            printf("✗ Error: wakefull no pudo iniciarse correctamente\n");
+            printf("Ejecuta 'wakefull --diagnose' para más información\n");
             return -1;
         }
     }
@@ -917,88 +948,117 @@ int start_wakefull(void) {
 
 // Detener wakefull
 int stop_wakefull(void) {
-    int running_pid = is_wakefull_running();
-    if (running_pid == 0) {
-        printf("wakefull no está ejecutándose\n");
+    int stored_pid;
+    int status = check_wakefull_status(&stored_pid);
+    
+    if (status == 0) {
+        printf("✗ wakefull no está ejecutándose\n");
         // Limpiar archivos residuales por si acaso
         unlink(PID_FILE);
         unlink(LOCK_FILE);
         return 1;
     }
     
-    printf("Deteniendo wakefull (PID: %d)...\n", running_pid);
+    if (status == -1) {
+        printf("Limpiando estado corrupto...\n");
+        unlink(PID_FILE);
+        unlink(LOCK_FILE);
+        if (stored_pid > 0 && kill(stored_pid, 0) == 0) {
+            kill(stored_pid, SIGTERM);
+        }
+        printf("✓ Estado limpiado\n");
+        return 0;
+    }
     
-    if (kill(running_pid, SIGTERM) == 0) {
-        // Esperar con timeout para que termine graciosamente
+    if (status == 2) {
+        // Proceso huérfano
+        printf("Deteniendo proceso huérfano (PID: %d)...\n", stored_pid);
+        if (kill(stored_pid, SIGTERM) == 0) {
+            sleep(2);
+            printf("✓ Proceso terminado\n");
+        }
+        unlink(PID_FILE);
+        unlink(LOCK_FILE);
+        return 0;
+    }
+    
+    // status == 1: proceso normal ejecutándose
+    printf("Deteniendo wakefull (PID: %d)...\n", stored_pid);
+    
+    if (kill(stored_pid, SIGTERM) == 0) {
+        // Esperar silenciosamente con timeout
         int wait_count = 0;
-        while (wait_count < MAX_WAIT_SECONDS && is_wakefull_running() > 0) {
-            printf("Esperando terminación... (%d/%d)\n", wait_count + 1, MAX_WAIT_SECONDS);
+        while (wait_count < 5) {
             sleep(1);
+            int new_stored_pid;
+            if (check_wakefull_status(&new_stored_pid) == 0) {
+                printf("✓ wakefull detenido correctamente\n");
+                return 0;
+            }
             wait_count++;
         }
         
-        // Verificar si realmente terminó
-        if (is_wakefull_running() == 0) {
-            printf("wakefull detenido correctamente\n");
-            return 0;
-        } else {
-            printf("El proceso no respondió, forzando detención...\n");
-            if (kill(running_pid, SIGKILL) == 0) {
-                sleep(2);
-                if (is_wakefull_running() == 0) {
-                    printf("wakefull forzadamente detenido\n");
-                    // Limpiar manualmente ya que la señal KILL no permite cleanup
-                    unlink(PID_FILE);
-                    unlink(LOCK_FILE);
-                    return 0;
-                } else {
-                    printf("Error: No se pudo detener el proceso\n");
-                    return -1;
-                }
-            } else {
-                perror("kill -KILL");
-                return -1;
-            }
-        }
-    } else {
-        if (errno == ESRCH) {
-            printf("El proceso ya no existe, limpiando archivos...\n");
+        // Si no respondió, forzar detención
+        printf("Forzando detención...\n");
+        if (kill(stored_pid, SIGKILL) == 0) {
+            sleep(1);
+            printf("✓ wakefull detenido\n");
             unlink(PID_FILE);
             unlink(LOCK_FILE);
             return 0;
-        } else {
-            perror("kill");
-            return -1;
         }
     }
+    
+    printf("✗ Error: No se pudo detener wakefull\n");
+    return -1;
 }
 
 // Mostrar estado
 void print_status(void) {
-    int running_pid = is_wakefull_running();
+    int stored_pid;
+    int status = check_wakefull_status(&stored_pid);
     
-    if (running_pid > 0) {
-        printf("Estado: wakefull está EJECUTÁNDOSE (PID: %d)\n", running_pid);
-        
-        // Mostrar método usado si es posible determinar
-        const char* method_name = "desconocido";
-        inhibit_method_t method = detect_best_method();
-        switch (method) {
-            case METHOD_XDG_SCREENSAVER:
-                method_name = "xdg-screensaver";
-                break;
-            case METHOD_SYSTEMD_INHIBIT:
-                method_name = "systemd-inhibit";
-                break;
-            case METHOD_DBUS_SCREENSAVER:
-                method_name = "D-Bus";
-                break;
-            default:
-                break;
-        }
-        printf("Método probable: %s\n", method_name);
-    } else {
-        printf("Estado: wakefull NO está ejecutándose\n");
+    switch (status) {
+        case 1:
+            printf("✓ Estado: wakefull está EJECUTÁNDOSE (PID: %d)\n", stored_pid);
+            
+            // Mostrar método usado si es posible determinar
+            const char* method_name = "desconocido";
+            inhibit_method_t method = detect_best_method();
+            switch (method) {
+                case METHOD_XDG_SCREENSAVER:
+                    method_name = "xdg-screensaver";
+                    break;
+                case METHOD_SYSTEMD_INHIBIT:
+                    method_name = "systemd-inhibit";
+                    break;
+                case METHOD_DBUS_SCREENSAVER:
+                    method_name = "D-Bus";
+                    break;
+                case METHOD_XFCE4_SPECIFIC:
+                    method_name = "XFCE4-específico";
+                    break;
+                default:
+                    break;
+            }
+            printf("✓ Método activo: %s\n", method_name);
+            printf("✓ Protector de pantalla y suspensión bloqueados\n");
+            break;
+        case 2:
+            printf("⚠ Estado: Proceso wakefull detectado sin PID file (PID: %d)\n", stored_pid);
+            printf("  Ejecuta 'wakefull --stop' para limpiar\n");
+            break;
+        case -1:
+            if (stored_pid > 0) {
+                printf("⚠ Estado: PID file existe pero proceso no activo (PID: %d)\n", stored_pid);
+            } else {
+                printf("⚠ Estado: PID file corrupto\n");
+            }
+            printf("  Ejecuta 'wakefull --stop' para limpiar\n");
+            break;
+        default:
+            printf("✗ Estado: wakefull NO está ejecutándose\n");
+            break;
     }
 }
 
