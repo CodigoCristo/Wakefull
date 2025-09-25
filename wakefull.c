@@ -48,6 +48,10 @@ static Display *display = NULL;
 static Window x11_window = 0;
 static char window_id_str[32] = {0};
 
+// Declaraciones de funciones
+int start_wakefull_mode(int debug_mode);
+int start_wakefull_debug(void);
+
 // Función para mostrar errores
 void print_error(const char *message) {
     fprintf(stderr, "Error: %s\n", message);
@@ -823,6 +827,16 @@ void setup_signals(void) {
 
 // Iniciar wakefull en segundo plano
 int start_wakefull(void) {
+    return start_wakefull_mode(0);
+}
+
+// Iniciar wakefull en modo debug (foreground)
+int start_wakefull_debug(void) {
+    return start_wakefull_mode(1);
+}
+
+// Iniciar wakefull (modo: 0=daemon, 1=foreground)
+int start_wakefull_mode(int debug_mode) {
     // Verificar si ya está ejecutándose sin hacer limpieza automática
     int stored_pid;
     int status = check_wakefull_status(&stored_pid);
@@ -845,7 +859,11 @@ int start_wakefull(void) {
         unlink(LOCK_FILE);
     }
     
-    printf("Iniciando wakefull...\n");
+    if (debug_mode) {
+        printf("Iniciando wakefull en modo DEBUG (foreground)...\n");
+    } else {
+        printf("Iniciando wakefull...\n");
+    }
     
     // Verificar métodos disponibles antes de continuar
     inhibit_method_t test_method = detect_best_method();
@@ -853,6 +871,65 @@ int start_wakefull(void) {
         printf("Error: No se encontró ningún método de inhibición disponible\n");
         printf("Ejecuta 'wakefull --test' para más información\n");
         return -1;
+    }
+    
+    if (debug_mode) {
+        // Modo debug: no hacer fork, ejecutar en foreground
+        printf("Modo DEBUG: Ejecutando en primer plano\n");
+        printf("Presiona Ctrl+C para detener\n\n");
+        
+        // Configurar señales
+        setup_signals();
+        
+        // Iniciar inhibición
+        if (start_inhibition() != 0) {
+            printf("Error: No se pudo iniciar inhibición\n");
+            return -1;
+        }
+        
+        const char* method_name = "desconocido";
+        inhibit_method_t method = detect_best_method();
+        switch (method) {
+            case METHOD_SYSTEMD_INHIBIT: method_name = "systemd-inhibit"; break;
+            case METHOD_XDG_SCREENSAVER: method_name = "xdg-screensaver"; break;
+            case METHOD_DBUS_SCREENSAVER: method_name = "D-Bus"; break;
+            case METHOD_XFCE4_SPECIFIC: method_name = "XFCE4-específico"; break;
+            default: method_name = "desconocido"; break;
+        }
+        
+        printf("✓ Inhibición iniciada exitosamente\n");
+        printf("✓ Método activo: %s\n", method_name);
+        printf("✓ PID de inhibición: %d\n", inhibit_pid);
+        printf("✓ Protector de pantalla y suspensión bloqueados\n\n");
+        
+        // Bucle principal con mensajes de debug
+        int health_check_counter = 0;
+        while (running) {
+            sleep(1);
+            health_check_counter++;
+            
+            // Health check cada 30 segundos
+            if (health_check_counter >= HEALTH_CHECK_INTERVAL) {
+                health_check_counter = 0;
+                
+                // Verificar si el proceso de inhibición sigue activo
+                if (inhibit_pid > 0 && kill(inhibit_pid, 0) != 0) {
+                    printf("⚠ Proceso de inhibición terminó inesperadamente, reiniciando...\n");
+                    if (start_inhibition() != 0) {
+                        printf("✗ Error crítico: No se pudo reiniciar inhibición\n");
+                        break;
+                    }
+                    printf("✓ Inhibición reiniciada\n");
+                }
+                
+                printf("DEBUG: Health check OK - Inhibición activa (PID: %d)\n", inhibit_pid);
+            }
+        }
+        
+        printf("\nDeteniendo inhibición...\n");
+        cleanup();
+        printf("✓ wakefull detenido\n");
+        return 0;
     }
     
     // Convertirse en daemon
@@ -1164,14 +1241,16 @@ void print_usage(void) {
     printf("  --status    Ver estado actual\n");
     printf("  --test      Probar métodos disponibles\n");
     printf("  --diagnose  Diagnosticar problemas específicos del entorno\n");
+    printf("  --debug     Ejecutar en modo foreground (para debugging)\n");
     printf("  --help      Mostrar esta ayuda\n");
     printf("  --version   Ver versión\n");
     printf("\n");
     printf("Ejemplos:\n");
-    printf("  %s --start    # Iniciar en segundo plano\n", PROGRAM_NAME);
-    printf("  %s --status   # Ver si está ejecutándose\n", PROGRAM_NAME);
-    printf("  %s --stop     # Detener\n", PROGRAM_NAME);
-    printf("  %s --diagnose # Diagnosticar problemas\n", PROGRAM_NAME);
+    printf("  wakefull --start    # Iniciar en segundo plano\n", PROGRAM_NAME);
+    printf("  wakefull --status   # Ver si está ejecutándose\n", PROGRAM_NAME);
+    printf("  wakefull --stop     # Detener\n", PROGRAM_NAME);
+    printf("  wakefull --debug    # Ejecutar en primer plano\n", PROGRAM_NAME);
+    printf("  wakefull --diagnose # Diagnosticar problemas\n", PROGRAM_NAME);
     printf("\n");
     printf("El programa previene:\n");
     printf("  • Protector de pantalla (screensaver)\n");
@@ -1216,6 +1295,8 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[1], "--diagnose") == 0) {
         diagnose_system();
         return 0;
+    } else if (strcmp(argv[1], "--debug") == 0) {
+        return start_wakefull_debug();
     } else if (strcmp(argv[1], "--start") == 0) {
         return start_wakefull();
     } else if (strcmp(argv[1], "--stop") == 0) {
