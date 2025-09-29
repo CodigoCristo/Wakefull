@@ -1,0 +1,54 @@
+# Build directories
+build/
+builddir/
+
+# Compiled binaries
+wakefull
+*.exe
+
+# Object files
+*.o
+*.obj
+*.so
+*.a
+*.lib
+
+# Debug files
+*.pdb
+*.dSYM/
+
+# Runtime files
+/tmp/wakefull.lock
+
+# Meson files
+.ninja_deps
+.ninja_log
+compile_commands.json
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# Log files
+*.log
+
+# Core dumps
+core
+core.*

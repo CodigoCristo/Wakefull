@@ -1,206 +1,177 @@
 # Wakefull
 
-**Bloqueador completo de protector de pantalla, suspensión y hibernación para XFCE4**
+Keep your computer awake by preventing desktop idleness.
 
-Wakefull previene que XFCE4 active el protector de pantalla, ponga el sistema en suspensión, hibernación o se suspenda al cerrar la tapa del laptop. Es una alternativa completa y confiable a caffeine, optimizada específicamente para XFCE4.
+Wakefull is a simple C implementation inspired by the Caffeine project. It prevents your computer from going to sleep, activating the screensaver, or locking the screen by inhibiting desktop idleness.
 
-## ¿Por qué Wakefull?
+## Features
 
-- ✅ **Protección completa**: Previene protector de pantalla, suspensión, hibernación y cierre de tapa
-- ✅ **Diseñado para XFCE4**: Funciona nativamente con xfce4-power-manager y xfce4-screensaver
-- ✅ **Múltiples métodos**: xset, xfconf-query, systemd-inhibit, D-Bus y xdg-screensaver
-- ✅ **Simple y confiable**: Sin dependencias complejas, sin bloqueos
-- ✅ **Restauración automática**: Vuelve a la configuración original al detenerse
-- ✅ **Modo daemon**: Se ejecuta en segundo plano de forma eficiente
-- ✅ **Fácil de usar**: Solo 3 comandos principales
+- **Simple Interface**: Just `--start` and `--stop` commands
+- **Lightweight**: Written in C with minimal dependencies
+- **Safe**: Properly handles cleanup and signal management
+- **Cross-platform**: Works on any X11-based Linux desktop environment
 
-## Instalación
+## Requirements
 
-### Dependencias requeridas
+- Linux with X11 desktop environment
+- X11 development libraries (`libx11-dev`)
+- `xdg-screensaver` utility (usually part of `xdg-utils`)
+- Meson build system
+- Ninja build tool
+- C compiler (GCC or Clang)
+
+## Installation
+
+### Quick Install
+
 ```bash
-# Ubuntu/Debian
-sudo apt install gcc meson ninja-build
-
-# Herramientas recomendadas para funcionalidad completa
-sudo apt install x11-xserver-utils xfconf systemd dbus xdg-utils
-```
-
-### Compilar e instalar
-```bash
-# Clonar y compilar
-git clone <repositorio>
+git clone <repository-url>
 cd Wakefull
-
-# Compilar con meson
-meson setup builddir
-meson compile -C builddir
-meson install -C builddir
-
-# O usar el script de instalación
-chmod +x install.sh
 ./install.sh
 ```
 
-## Uso
+### Custom Installation
 
-### Comandos básicos
+Install to a custom prefix:
+
 ```bash
-wakefull --start     # Iniciar daemon (bloquear protector de pantalla)
-wakefull --stop      # Detener daemon
-wakefull --status    # Ver estado actual
+./install.sh --prefix /usr
 ```
 
-### Comandos adicionales
+### Manual Installation
+
+If you prefer to build manually:
+
 ```bash
-wakefull --foreground    # Ejecutar en primer plano (para debug)
-wakefull --help         # Mostrar ayuda
-wakefull --version      # Ver versión
+# Install dependencies (Ubuntu/Debian)
+sudo apt install meson ninja-build libx11-dev xdg-utils
+
+# Or on Arch Linux
+sudo pacman -S meson ninja libx11 xdg-utils
+
+# Build and install
+meson setup build
+ninja -C build
+sudo ninja -C build install
 ```
 
-### Ejemplos
+## Usage
+
+### Start preventing desktop idleness
+
 ```bash
-# Uso típico
 wakefull --start
-# Realizar trabajo importante...
-wakefull --stop
+```
 
-# Verificar que está funcionando
+This will:
+- Fork a daemon process in the background
+- Create a dummy X11 window
+- Use `xdg-screensaver suspend` to prevent screensaver activation
+- Keep running in the background until stopped
+
+### Stop preventing desktop idleness
+
+```bash
+wakefull --stop
+```
+
+This will:
+- Resume the screensaver using `xdg-screensaver resume`
+- Clean up the lock file and X11 resources
+
+### Check status
+
+```bash
+wakefull --status
+```
+
+This will show whether wakefull is currently running and display the daemon PID.
+
+### Get help
+
+```bash
+wakefull --help
+```
+
+## How It Works
+
+Wakefull works by:
+
+1. Creating a minimal X11 window when started
+2. Using the window ID with `xdg-screensaver suspend` to prevent idle detection
+3. Storing the window ID in a lock file (`/tmp/wakefull.lock`)
+4. Keeping the program running to maintain the X11 connection
+5. Properly cleaning up when stopped or interrupted
+
+## Examples
+
+```bash
+# Start wakefull before watching a movie
+wakefull --start
+
+# Check if it's running
 wakefull --status
 
-# Debug (ver qué está haciendo)
-wakefull --foreground
+# Stop when done
+wakefull --stop
+
+# Try to start again (will show "Already running" message)
+wakefull --start
 ```
 
-## Cómo funciona
+## Signals
 
-Wakefull usa múltiples métodos simultáneos para protección completa:
+Wakefull properly handles these signals for clean shutdown:
+- `SIGINT` (Ctrl+C)
+- `SIGTERM` 
+- `SIGHUP`
 
-### 1. **Control completo de XFCE4** (xfconf-query)
-- Desactiva `xfce4-screensaver` temporalmente
-- Configura `xfce4-power-manager` para prevenir:
-  - Blank screen y DPMS
-  - Suspensión por inactividad
-  - Hibernación automática
-  - Suspensión por cierre de tapa
-- Modifica configuraciones de `xfce4-session`
+When receiving any of these signals, it will automatically resume the screensaver and clean up resources.
 
-### 2. **Inhibición universal** (systemd-inhibit)
-- Bloquea: `sleep`, `idle`, `handle-lid-switch`, `handle-power-key`
-- Funciona a nivel del sistema operativo
-- Complementa las configuraciones de XFCE4
+## Files
 
-### 3. **Control de X11** (xset)
-- Resetea screensaver continuamente
-- Fuerza DPMS encendido
-- Desactiva ahorro de energía de pantalla
+- `wakefull.c` - Main source code
+- `meson.build` - Meson build configuration
+- `install.sh` - Installation script
+- `/tmp/wakefull.lock` - Runtime lock file (contains daemon PID and window ID)
 
-### 4. **Métodos adicionales**
-- **D-Bus**: Simula actividad de usuario y previene power management
-- **xdg-screensaver**: Resetea screensaver como respaldo
-- **Actividad del sistema**: Crea actividad periódica
+## Differences from Caffeine
 
-### Restauración automática:
-Al detenerse, wakefull restaura automáticamente todas las configuraciones originales de XFCE4, dejando el sistema como estaba antes.
+While inspired by Caffeine, Wakefull is simpler:
 
-## Archivos y logs
+- **No GUI**: Command-line only interface
+- **No auto-detection**: Manual start/stop only (no automatic fullscreen detection)
+- **No system tray**: No indicator or tray icon
+- **Daemon mode**: Runs in background, no need to keep terminal open
+- **Minimal dependencies**: Only requires X11 and xdg-utils
 
-- **PID file**: `/tmp/wakefull.pid`
-- **Log file**: `/tmp/wakefull.log`
-- **Actividad**: `/tmp/.wakefull_keepalive`
+## Troubleshooting
 
-## Solución de problemas
+### "Cannot open X11 display" error
+Make sure you're running this on a system with X11 and the `DISPLAY` environment variable is set.
 
-### Si el protector de pantalla sigue activándose:
-
-1. **Verificar que está ejecutándose**:
-   ```bash
-   wakefull --status
-   ```
-
-2. **Revisar herramientas disponibles**:
-   ```bash
-   # Verificar que xset está instalado
-   command -v xset && echo "✓ xset disponible"
-   
-   # Verificar que xfconf-query está instalado
-   command -v xfconf-query && echo "✓ xfconf-query disponible"
-   ```
-
-3. **Ejecutar en modo debug**:
-   ```bash
-   wakefull --foreground
-   ```
-
-4. **Verificar log**:
-   ```bash
-   tail -f /tmp/wakefull.log
-   ```
-
-### Instalar herramientas faltantes:
+### "xdg-screensaver not found"
+Install xdg-utils package:
 ```bash
 # Ubuntu/Debian
-sudo apt install x11-xserver-utils xfconf xdg-utils
+sudo apt install xdg-utils
 
-# Fedora
-sudo dnf install xorg-x11-server-utils xfce4-conf xdg-utils
-
-# Arch Linux
-sudo pacman -S xorg-xset xfconf xdg-utils
+# Arch Linux  
+sudo pacman -S xdg-utils
 ```
 
-## Requisitos del sistema
+### Program doesn't prevent sleep
+Some desktop environments or power management systems may override xdg-screensaver. You may need to configure your specific desktop environment's power settings.
 
-- **Sistema operativo**: Linux
-- **Entorno de escritorio**: XFCE4
-- **Display server**: X11
-- **Compilador**: GCC
-- **Build system**: Meson + Ninja
-- **Herramientas recomendadas**: systemd, xset, xfconf-query, dbus-send
+## License
 
-## Funcionalidades bloqueadas
+This project is released under the GNU General Public License v3.0 or later.
 
-Wakefull previene **todas** estas acciones cuando está activo:
+## Contributing
 
-- ✅ **Protector de pantalla** (xfce4-screensaver)
-- ✅ **Bloqueo automático de pantalla** por inactividad
-- ✅ **Blank screen** (pantalla en negro)
-- ✅ **DPMS** (apagado de monitor)
-- ✅ **Suspensión del sistema** (sleep)
-- ✅ **Hibernación** (hibernate)
-- ✅ **Suspensión por cierre de tapa** en laptops
-- ✅ **Suspensión por botón de power**
-- ✅ **Suspensión por inactividad** (timeout)
+Contributions are welcome! Please feel free to submit issues or pull requests.
 
-## Desinstalar
+## Acknowledgments
 
-```bash
-# Si se instaló con meson
-sudo ninja uninstall -C builddir
-
-# Manual
-sudo rm /usr/local/bin/wakefull
-rm ~/.local/bin/wakefull  # si se instaló como usuario
-```
-
-## Contribuir
-
-Este proyecto está enfocado específicamente en XFCE4. Las contribuciones son bienvenidas para:
-
-- Mejorar compatibilidad con diferentes versiones de XFCE4
-- Optimizar el rendimiento
-- Corregir bugs específicos de XFCE4
-- Mejorar documentación
-
-1. Fork el repositorio
-2. Crea un branch: `git checkout -b feature/mejora`
-3. Commit: `git commit -m 'Agregar mejora'`
-4. Push: `git push origin feature/mejora`
-5. Crear Pull Request
-
-## Licencia
-
-GPL-3.0-or-later
-
----
-
-**Wakefull v2.2.0** - Protección completa contra protector de pantalla, suspensión, hibernación y cierre de tapa para XFCE4
+- Inspired by the [Caffeine project](https://launchpad.net/caffeine)
+- Uses the same underlying mechanism (`xdg-screensaver`)

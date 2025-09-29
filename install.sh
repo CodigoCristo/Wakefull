@@ -1,191 +1,183 @@
 #!/bin/bash
 
-# Script de instalación simple para wakefull
-# Copyright (C) 2024
-# Versión simplificada para XFCE4
-
-set -e  # Salir en caso de error
+set -e
 
 PROGRAM_NAME="wakefull"
-VERSION="2.2.0"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BUILD_DIR="build"
 PREFIX="/usr/local"
 
-# Colores
+# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+NC='\033[0m' # No Color
 
-print_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-print_success() {
-    echo -e "${GREEN}[ÉXITO]${NC} $1"
+print_status() {
+    echo -e "${GREEN}[INFO]${NC} $1"
 }
 
 print_warning() {
-    echo -e "${YELLOW}[AVISO]${NC} $1"
+    echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
 print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-show_header() {
-    echo "=================================="
-    echo "  Instalador de $PROGRAM_NAME $VERSION"
-    echo "=================================="
-    echo
-}
-
-check_permissions() {
-    if [[ $EUID -eq 0 ]]; then
-        PREFIX="/usr/local"
-        print_info "Instalando como root en $PREFIX"
-    else
-        PREFIX="$HOME/.local"
-        print_info "Instalando como usuario en $PREFIX"
-        mkdir -p "$PREFIX/bin"
-    fi
-}
-
 check_dependencies() {
-    print_info "Verificando dependencias..."
+    print_status "Checking dependencies..."
 
-    if ! command -v gcc >/dev/null 2>&1; then
-        print_error "gcc no encontrado"
-        print_error "Instala: sudo apt install gcc"
+    # Check for meson
+    if ! command -v meson &> /dev/null; then
+        print_error "meson is required but not installed."
+        print_error "Install with: sudo apt install meson (Ubuntu/Debian) or sudo pacman -S meson (Arch)"
         exit 1
     fi
 
-    print_success "gcc encontrado"
-}
-
-show_system_info() {
-    print_info "Información del sistema:"
-    echo "  Desktop: ${XDG_CURRENT_DESKTOP:-No detectado}"
-    echo "  Session: ${DESKTOP_SESSION:-No detectado}"
-    echo "  Display: ${DISPLAY:-No detectado}"
-    echo
-
-    print_info "Herramientas disponibles:"
-    command -v xset >/dev/null 2>&1 && echo "  ✓ xset" || echo "  ✗ xset (recomendado: sudo apt install x11-xserver-utils)"
-    command -v xfconf-query >/dev/null 2>&1 && echo "  ✓ xfconf-query" || echo "  ✗ xfconf-query (recomendado: sudo apt install xfconf)"
-    command -v xdg-screensaver >/dev/null 2>&1 && echo "  ✓ xdg-screensaver" || echo "  ✗ xdg-screensaver (opcional)"
-}
-
-cleanup_previous() {
-    print_info "Limpiando instalación anterior..."
-
-    # Detener instancia existente si hay una
-    if [ -f "/tmp/wakefull.pid" ]; then
-        if [ -x "$PREFIX/bin/$PROGRAM_NAME" ]; then
-            "$PREFIX/bin/$PROGRAM_NAME" --stop >/dev/null 2>&1 || true
-        fi
-    fi
-
-    # Limpiar archivos temporales
-    rm -f /tmp/wakefull.pid /tmp/wakefull.log /tmp/.wakefull_keepalive
-}
-
-compile_program() {
-    print_info "Compilando $PROGRAM_NAME..."
-
-    cd "$SCRIPT_DIR"
-
-    if [ ! -f "wakefull.c" ]; then
-        print_error "archivo wakefull.c no encontrado"
+    # Check for ninja
+    if ! command -v ninja &> /dev/null; then
+        print_error "ninja is required but not installed."
+        print_error "Install with: sudo apt install ninja-build (Ubuntu/Debian) or sudo pacman -S ninja (Arch)"
         exit 1
     fi
 
-    # Compilar con configuración optimizada
-    gcc -Wall -Wextra -std=c99 -O2 -DNDEBUG -o "$PROGRAM_NAME" wakefull.c
-
-    if [ ! -f "$PROGRAM_NAME" ]; then
-        print_error "Compilación falló"
+    # Check for X11 development libraries
+    if ! pkg-config --exists x11; then
+        print_error "X11 development libraries are required but not found."
+        print_error "Install with: sudo apt install libx11-dev (Ubuntu/Debian) or sudo pacman -S libx11 (Arch)"
         exit 1
     fi
 
-    print_success "Compilación exitosa"
+    # Check for xdg-screensaver
+    if ! command -v xdg-screensaver &> /dev/null; then
+        print_warning "xdg-screensaver not found. This is required for wakefull to function properly."
+        print_warning "Install with: sudo apt install xdg-utils (Ubuntu/Debian) or sudo pacman -S xdg-utils (Arch)"
+    fi
+
+    print_status "All dependencies satisfied!"
+}
+
+build_program() {
+    print_status "Setting up build directory..."
+
+    # Clean previous build if it exists
+    if [ -d "$BUILD_DIR" ]; then
+        rm -rf "$BUILD_DIR"
+    fi
+
+    # Setup meson build
+    print_status "Configuring build with meson..."
+    meson setup "$BUILD_DIR" --prefix="$PREFIX"
+
+    # Build the program
+    print_status "Building $PROGRAM_NAME..."
+    ninja -C "$BUILD_DIR"
+
+    print_status "Build completed successfully!"
 }
 
 install_program() {
-    print_info "Instalando $PROGRAM_NAME en $PREFIX/bin..."
+    print_status "Installing $PROGRAM_NAME to $PREFIX/bin..."
 
-    mkdir -p "$PREFIX/bin"
-    cp "$SCRIPT_DIR/$PROGRAM_NAME" "$PREFIX/bin/$PROGRAM_NAME"
-    chmod +x "$PREFIX/bin/$PROGRAM_NAME"
-
-    print_success "Instalación completada"
-}
-
-verify_installation() {
-    if [ -x "$PREFIX/bin/$PROGRAM_NAME" ]; then
-        print_success "Instalación verificada"
-        "$PREFIX/bin/$PROGRAM_NAME" --version
-        return 0
+    # Install using ninja
+    if [ "$EUID" -eq 0 ]; then
+        ninja -C "$BUILD_DIR" install
     else
-        print_error "Verificación de instalación falló"
-        return 1
+        sudo ninja -C "$BUILD_DIR" install
+    fi
+
+    print_status "$PROGRAM_NAME installed successfully!"
+    print_status "You can now run: $PROGRAM_NAME --start"
+}
+
+print_usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --prefix PREFIX    Install prefix (default: /usr/local)"
+    echo "  --help            Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0                           # Install to /usr/local"
+    echo "  $0 --prefix /usr             # Install to /usr"
+    echo ""
+}
+
+cleanup() {
+    if [ -d "$BUILD_DIR" ]; then
+        print_status "Cleaning up build directory..."
+        rm -rf "$BUILD_DIR"
     fi
 }
 
-show_usage_instructions() {
-    echo
-    print_info "Instrucciones de uso:"
-    echo
-    echo "Para usar $PROGRAM_NAME:"
-    echo "  $PREFIX/bin/$PROGRAM_NAME --start    # Iniciar daemon"
-    echo "  $PREFIX/bin/$PROGRAM_NAME --stop     # Detener daemon"
-    echo "  $PREFIX/bin/$PROGRAM_NAME --status   # Ver estado"
-    echo "  $PREFIX/bin/$PROGRAM_NAME --help     # Ver ayuda completa"
-    echo
-
-    if [[ $EUID -ne 0 ]] && [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-        print_warning "Para usar $PROGRAM_NAME desde cualquier lugar, agrega esto a tu ~/.bashrc:"
-        echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
-        echo "Luego ejecuta: source ~/.bashrc"
-        echo
-    fi
-
-    print_info "Este programa previene que XFCE4 active el protector de pantalla"
-    print_info "o ponga el sistema en suspensión."
-}
-
-# Función principal
 main() {
-    show_header
-    check_permissions
-    show_system_info
-    echo
-    check_dependencies
-    cleanup_previous
-    compile_program
-    install_program
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --prefix)
+                PREFIX="$2"
+                shift 2
+                ;;
+            --help)
+                print_usage
+                exit 0
+                ;;
+            *)
+                print_error "Unknown option: $1"
+                print_usage
+                exit 1
+                ;;
+        esac
+    done
 
-    if verify_installation; then
-        show_usage_instructions
-        echo
-        print_success "¡Instalación completada exitosamente!"
+    echo "================================"
+    echo "  Wakefull Installation Script  "
+    echo "================================"
+    echo ""
+    print_status "Installing to prefix: $PREFIX"
+    echo ""
 
-        # Ofrecer prueba rápida
-        echo
-        read -p "¿Quieres iniciar wakefull ahora? (y/N): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            "$PREFIX/bin/$PROGRAM_NAME" --start
-        fi
-    else
-        print_error "Instalación falló"
+    # Set trap for cleanup on exit
+    trap cleanup EXIT
+
+    # Check if we're in the right directory
+    if [ ! -f "wakefull.c" ] || [ ! -f "meson.build" ]; then
+        print_error "Please run this script from the wakefull source directory"
         exit 1
     fi
+
+    # Run installation steps
+    check_dependencies
+    build_program
+    install_program
+
+    echo ""
+    echo "================================"
+    print_status "Installation completed successfully!"
+    echo "================================"
+    echo ""
+    print_status "Wakefull has been installed to: $PREFIX/bin/$PROGRAM_NAME"
+    echo ""
+    print_status "Quick Start Guide:"
+    echo "  $PROGRAM_NAME --start     # Start daemon to prevent desktop idleness"
+    echo "  $PROGRAM_NAME --status    # Check if wakefull is running"
+    echo "  $PROGRAM_NAME --stop      # Stop preventing desktop idleness"
+    echo "  $PROGRAM_NAME --help      # Show detailed help"
+    echo ""
+    print_status "Example Usage:"
+    echo "  # Before watching a movie or giving a presentation:"
+    echo "  $PROGRAM_NAME --start"
+    echo ""
+    echo "  # When finished:"
+    echo "  $PROGRAM_NAME --stop"
+    echo ""
+    print_status "Notes:"
+    echo "  - Wakefull runs as a background daemon when started"
+    echo "  - Your screen will stay awake until you stop wakefull"
+    echo "  - Use Ctrl+C if running in foreground, or --stop to cleanly exit"
+    echo "  - Lock file: /tmp/wakefull.lock (contains daemon PID and window ID)"
+    echo ""
 }
 
-# Manejar Ctrl+C
-trap 'echo -e "\n${YELLOW}Instalación cancelada${NC}"; exit 1' INT
-
-# Ejecutar
+# Run main function with all arguments
 main "$@"
