@@ -25,40 +25,40 @@ print_error() {
 }
 
 check_dependencies() {
-    print_status "Checking dependencies..."
+    print_status "Verificando dependencias..."
 
     # Check for meson
     if ! command -v meson &> /dev/null; then
-        print_error "meson is required but not installed."
-        print_error "Install with: sudo apt install meson (Ubuntu/Debian) or sudo pacman -S meson (Arch)"
+        print_error "meson es requerido pero no está instalado."
+        print_error "Instala con: sudo apt install meson (Ubuntu/Debian) o sudo pacman -S meson (Arch)"
         exit 1
     fi
 
     # Check for ninja
     if ! command -v ninja &> /dev/null; then
-        print_error "ninja is required but not installed."
-        print_error "Install with: sudo apt install ninja-build (Ubuntu/Debian) or sudo pacman -S ninja (Arch)"
+        print_error "ninja es requerido pero no está instalado."
+        print_error "Instala con: sudo apt install ninja-build (Ubuntu/Debian) o sudo pacman -S ninja (Arch)"
         exit 1
     fi
 
     # Check for X11 development libraries
     if ! pkg-config --exists x11; then
-        print_error "X11 development libraries are required but not found."
-        print_error "Install with: sudo apt install libx11-dev (Ubuntu/Debian) or sudo pacman -S libx11 (Arch)"
+        print_error "Las librerías de desarrollo X11 son requeridas pero no se encontraron."
+        print_error "Instala con: sudo apt install libx11-dev (Ubuntu/Debian) o sudo pacman -S libx11 (Arch)"
         exit 1
     fi
 
     # Check for xdg-screensaver
     if ! command -v xdg-screensaver &> /dev/null; then
-        print_warning "xdg-screensaver not found. This is required for wakefull to function properly."
-        print_warning "Install with: sudo apt install xdg-utils (Ubuntu/Debian) or sudo pacman -S xdg-utils (Arch)"
+        print_warning "xdg-screensaver no encontrado. Esto es requerido para que wakefull funcione correctamente."
+        print_warning "Instala con: sudo apt install xdg-utils (Ubuntu/Debian) o sudo pacman -S xdg-utils (Arch)"
     fi
 
-    print_status "All dependencies satisfied!"
+    print_status "¡Todas las dependencias están satisfechas!"
 }
 
 build_program() {
-    print_status "Setting up build directory..."
+    print_status "Configurando directorio de construcción..."
 
     # Clean previous build if it exists
     if [ -d "$BUILD_DIR" ]; then
@@ -66,18 +66,18 @@ build_program() {
     fi
 
     # Setup meson build
-    print_status "Configuring build with meson..."
+    print_status "Configurando construcción con meson..."
     meson setup "$BUILD_DIR" --prefix="$PREFIX"
 
     # Build the program
-    print_status "Building $PROGRAM_NAME..."
+    print_status "Construyendo $PROGRAM_NAME..."
     ninja -C "$BUILD_DIR"
 
-    print_status "Build completed successfully!"
+    print_status "¡Construcción completada exitosamente!"
 }
 
 install_program() {
-    print_status "Installing $PROGRAM_NAME to $PREFIX/bin..."
+    print_status "Instalando $PROGRAM_NAME en $PREFIX/bin..."
 
     # Install using ninja
     if [ "$EUID" -eq 0 ]; then
@@ -86,26 +86,26 @@ install_program() {
         sudo ninja -C "$BUILD_DIR" install
     fi
 
-    print_status "$PROGRAM_NAME installed successfully!"
-    print_status "You can now run: $PROGRAM_NAME --start"
+    print_status "¡$PROGRAM_NAME instalado exitosamente!"
+    print_status "Ahora puedes ejecutar: $PROGRAM_NAME --start"
 }
 
 print_usage() {
-    echo "Usage: $0 [OPTIONS]"
+    echo "Uso: $0 [OPCIONES]"
     echo ""
-    echo "Options:"
-    echo "  --prefix PREFIX    Install prefix (default: /usr/local)"
-    echo "  --help            Show this help message"
+    echo "Opciones:"
+    echo "  --prefix PREFIX    Prefijo de instalación (por defecto: /usr/local)"
+    echo "  --help            Mostrar este mensaje de ayuda"
     echo ""
-    echo "Examples:"
-    echo "  $0                           # Install to /usr/local"
-    echo "  $0 --prefix /usr             # Install to /usr"
+    echo "Ejemplos:"
+    echo "  $0                           # Instalar en /usr/local"
+    echo "  $0 --prefix /usr             # Instalar en /usr"
     echo ""
 }
 
 cleanup() {
     if [ -d "$BUILD_DIR" ]; then
-        print_status "Cleaning up build directory..."
+        print_status "Limpiando directorio de construcción..."
         rm -rf "$BUILD_DIR"
     fi
 }
@@ -123,7 +123,7 @@ main() {
                 exit 0
                 ;;
             *)
-                print_error "Unknown option: $1"
+                print_error "Opción desconocida: $1"
                 print_usage
                 exit 1
                 ;;
@@ -131,10 +131,10 @@ main() {
     done
 
     echo "================================"
-    echo "  Wakefull Installation Script  "
+    echo "   Script de Instalación Wakefull   "
     echo "================================"
     echo ""
-    print_status "Installing to prefix: $PREFIX"
+    print_status "Instalando en prefijo: $PREFIX"
     echo ""
 
     # Set trap for cleanup on exit
@@ -142,7 +142,7 @@ main() {
 
     # Check if we're in the right directory
     if [ ! -f "wakefull.c" ] || [ ! -f "meson.build" ]; then
-        print_error "Please run this script from the wakefull source directory"
+        print_error "Por favor ejecuta este script desde el directorio fuente de wakefull"
         exit 1
     fi
 
@@ -153,29 +153,29 @@ main() {
 
     echo ""
     echo "================================"
-    print_status "Installation completed successfully!"
+    print_status "¡Instalación completada exitosamente!"
     echo "================================"
     echo ""
-    print_status "Wakefull has been installed to: $PREFIX/bin/$PROGRAM_NAME"
+    print_status "Wakefull ha sido instalado en: $PREFIX/bin/$PROGRAM_NAME"
     echo ""
-    print_status "Quick Start Guide:"
-    echo "  $PROGRAM_NAME --start     # Start daemon to prevent desktop idleness"
-    echo "  $PROGRAM_NAME --status    # Check if wakefull is running"
-    echo "  $PROGRAM_NAME --stop      # Stop preventing desktop idleness"
-    echo "  $PROGRAM_NAME --help      # Show detailed help"
+    print_status "Guía de Inicio Rápido:"
+    echo "  $PROGRAM_NAME --start     # Iniciar daemon para prevenir inactividad del escritorio"
+    echo "  $PROGRAM_NAME --status    # Verificar si wakefull está funcionando"
+    echo "  $PROGRAM_NAME --stop      # Detener prevención de inactividad del escritorio"
+    echo "  $PROGRAM_NAME --help      # Mostrar ayuda detallada"
     echo ""
-    print_status "Example Usage:"
-    echo "  # Before watching a movie or giving a presentation:"
+    print_status "Ejemplo de Uso:"
+    echo "  # Antes de ver una película o dar una presentación:"
     echo "  $PROGRAM_NAME --start"
     echo ""
-    echo "  # When finished:"
+    echo "  # Cuando termines:"
     echo "  $PROGRAM_NAME --stop"
     echo ""
-    print_status "Notes:"
-    echo "  - Wakefull runs as a background daemon when started"
-    echo "  - Your screen will stay awake until you stop wakefull"
-    echo "  - Use Ctrl+C if running in foreground, or --stop to cleanly exit"
-    echo "  - Lock file: /tmp/wakefull.lock (contains daemon PID and window ID)"
+    print_status "Notas:"
+    echo "  - Wakefull se ejecuta como un daemon en segundo plano al iniciarse"
+    echo "  - Tu pantalla se mantendrá despierta hasta que detengas wakefull"
+    echo "  - Usa Ctrl+C si se ejecuta en primer plano, o --stop para salir limpiamente"
+    echo "  - Archivo de bloqueo: /tmp/wakefull.lock (contiene PID del daemon e ID de ventana)"
     echo ""
 }
 

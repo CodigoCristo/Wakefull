@@ -1,157 +1,162 @@
 # Wakefull
 
-Keep your computer awake by preventing desktop idleness.
+Mantén tu computadora despierta previniendo la inactividad del escritorio.
 
-Wakefull is a simple C implementation inspired by the Caffeine project. It prevents your computer from going to sleep, activating the screensaver, or locking the screen by inhibiting desktop idleness.
+Wakefull es una implementación simple en C inspirada en el proyecto Caffeine. Previene que tu computadora entre en suspensión, active el salvapantallas o bloquee la pantalla inhibiendo la inactividad del escritorio.
 
-## Features
+## Repositorio
 
-- **Simple Interface**: Just `--start` and `--stop` commands
-- **Lightweight**: Written in C with minimal dependencies
-- **Safe**: Properly handles cleanup and signal management
-- **Cross-platform**: Works on any X11-based Linux desktop environment
+🔗 **GitHub**: https://github.com/CodigoCristo/Wakefull
 
-## Requirements
+## Características
 
-- Linux with X11 desktop environment
-- X11 development libraries (`libx11-dev`)
-- `xdg-screensaver` utility (usually part of `xdg-utils`)
-- Meson build system
-- Ninja build tool
-- C compiler (GCC or Clang)
+- **Interfaz Simple**: Solo comandos `--start` y `--stop`
+- **Ligero**: Escrito en C con dependencias mínimas
+- **Seguro**: Maneja apropiadamente la limpieza y gestión de señales
+- **Multiplataforma**: Funciona en cualquier entorno de escritorio Linux basado en X11
 
-## Installation
+## Requisitos
 
-### Quick Install
+- Linux con entorno de escritorio X11
+- Librerías de desarrollo X11 (`libx11-dev`)
+- Utilidad `xdg-screensaver` (usualmente parte de `xdg-utils`)
+- Sistema de construcción Meson
+- Herramienta de construcción Ninja
+- Compilador de C (GCC o Clang)
+
+## Instalación
+
+### Instalación Rápida
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/CodigoCristo/Wakefull
 cd Wakefull
 ./install.sh
 ```
 
-### Custom Installation
+### Instalación Personalizada
 
-Install to a custom prefix:
+Instalar en un prefijo personalizado:
 
 ```bash
 ./install.sh --prefix /usr
 ```
 
-### Manual Installation
+### Instalación Manual
 
-If you prefer to build manually:
+Si prefieres construir manualmente:
 
 ```bash
-# Install dependencies (Ubuntu/Debian)
+# Instalar dependencias (Ubuntu/Debian)
 sudo apt install meson ninja-build libx11-dev xdg-utils
 
-# Or on Arch Linux
+# O en Arch Linux
 sudo pacman -S meson ninja libx11 xdg-utils
 
-# Build and install
+# Construir e instalar
 meson setup build
 ninja -C build
 sudo ninja -C build install
 ```
 
-## Usage
+## Uso
 
-### Start preventing desktop idleness
+### Iniciar prevención de inactividad del escritorio
 
 ```bash
 wakefull --start
 ```
 
-This will:
-- Fork a daemon process in the background
-- Create a dummy X11 window
-- Use `xdg-screensaver suspend` to prevent screensaver activation
-- Keep running in the background until stopped
+Esto hará:
+- Crear un proceso daemon en segundo plano
+- Crear una ventana X11 ficticia
+- Usar `xdg-screensaver suspend` para prevenir la activación del salvapantallas
+- Mantener funcionando en segundo plano hasta ser detenido
 
-### Stop preventing desktop idleness
+### Detener prevención de inactividad del escritorio
 
 ```bash
 wakefull --stop
 ```
 
-This will:
-- Resume the screensaver using `xdg-screensaver resume`
-- Clean up the lock file and X11 resources
+Esto hará:
+- Reanudar el salvapantallas usando `xdg-screensaver resume`
+- Limpiar el archivo de bloqueo y recursos X11
 
-### Check status
+### Verificar estado
 
 ```bash
 wakefull --status
 ```
 
-This will show whether wakefull is currently running and display the daemon PID.
+Esto mostrará si wakefull está actualmente funcionando y mostrará el PID del daemon.
 
-### Get help
+### Obtener ayuda
 
 ```bash
 wakefull --help
 ```
 
-## How It Works
+## Cómo Funciona
 
-Wakefull works by:
+Wakefull funciona:
 
-1. Creating a minimal X11 window when started
-2. Using the window ID with `xdg-screensaver suspend` to prevent idle detection
-3. Storing the window ID in a lock file (`/tmp/wakefull.lock`)
-4. Keeping the program running to maintain the X11 connection
-5. Properly cleaning up when stopped or interrupted
+1. Creando una ventana X11 mínima al iniciarse
+2. Usando el ID de ventana con `xdg-screensaver suspend` para prevenir la detección de inactividad
+3. Almacenando el ID de ventana en un archivo de bloqueo (`/tmp/wakefull.lock`)
+4. Manteniendo el programa funcionando para mantener la conexión X11
+5. Limpiando apropiadamente cuando se detiene o interrumpe
 
-## Examples
+## Ejemplos
 
 ```bash
-# Start wakefull before watching a movie
+# Iniciar wakefull antes de ver una película
 wakefull --start
 
-# Check if it's running
+# Verificar si está funcionando
 wakefull --status
 
-# Stop when done
+# Detener cuando termine
 wakefull --stop
 
-# Try to start again (will show "Already running" message)
+# Intentar iniciar nuevamente (mostrará mensaje "Ya funcionando")
 wakefull --start
 ```
 
-## Signals
+## Señales
 
-Wakefull properly handles these signals for clean shutdown:
+Wakefull maneja apropiadamente estas señales para un apagado limpio:
 - `SIGINT` (Ctrl+C)
 - `SIGTERM` 
 - `SIGHUP`
 
-When receiving any of these signals, it will automatically resume the screensaver and clean up resources.
+Al recibir cualquiera de estas señales, automáticamente reanudará el salvapantallas y limpiará los recursos.
 
-## Files
+## Archivos
 
-- `wakefull.c` - Main source code
-- `meson.build` - Meson build configuration
-- `install.sh` - Installation script
-- `/tmp/wakefull.lock` - Runtime lock file (contains daemon PID and window ID)
+- `wakefull.c` - Código fuente principal
+- `meson.build` - Configuración de construcción Meson
+- `install.sh` - Script de instalación
+- `uninstall.sh` - Script de desinstalación
+- `/tmp/wakefull.lock` - Archivo de bloqueo en tiempo de ejecución (contiene PID del daemon e ID de ventana)
 
-## Differences from Caffeine
+## Diferencias con Caffeine
 
-While inspired by Caffeine, Wakefull is simpler:
+Aunque inspirado en Caffeine, Wakefull es más simple:
 
-- **No GUI**: Command-line only interface
-- **No auto-detection**: Manual start/stop only (no automatic fullscreen detection)
-- **No system tray**: No indicator or tray icon
-- **Daemon mode**: Runs in background, no need to keep terminal open
-- **Minimal dependencies**: Only requires X11 and xdg-utils
+- **Sin GUI**: Interfaz solo de línea de comandos
+- **Sin auto-detección**: Solo inicio/parada manual (sin detección automática de pantalla completa)
+- **Sin bandeja del sistema**: Sin indicador o icono en la bandeja
+- **Modo daemon**: Se ejecuta en segundo plano, no necesita mantener la terminal abierta
+- **Dependencias mínimas**: Solo requiere X11 y xdg-utils
 
-## Troubleshooting
+## Solución de Problemas
 
-### "Cannot open X11 display" error
-Make sure you're running this on a system with X11 and the `DISPLAY` environment variable is set.
+### Error "No se puede abrir display X11"
+Asegúrate de estar ejecutando esto en un sistema con X11 y que la variable de entorno `DISPLAY` esté configurada.
 
-### "xdg-screensaver not found"
-Install xdg-utils package:
+### "xdg-screensaver no encontrado"
+Instala el paquete xdg-utils:
 ```bash
 # Ubuntu/Debian
 sudo apt install xdg-utils
@@ -160,18 +165,18 @@ sudo apt install xdg-utils
 sudo pacman -S xdg-utils
 ```
 
-### Program doesn't prevent sleep
-Some desktop environments or power management systems may override xdg-screensaver. You may need to configure your specific desktop environment's power settings.
+### El programa no previene la suspensión
+Algunos entornos de escritorio o sistemas de gestión de energía pueden anular xdg-screensaver. Puede que necesites configurar las configuraciones de energía de tu entorno de escritorio específico.
 
-## License
+## Licencia
 
-This project is released under the GNU General Public License v3.0 or later.
+Este proyecto está publicado bajo la Licencia Pública General GNU v3.0 o posterior.
 
-## Contributing
+## Contribuciones
 
-Contributions are welcome! Please feel free to submit issues or pull requests.
+¡Las contribuciones son bienvenidas! Por favor siéntete libre de enviar issues o pull requests.
 
-## Acknowledgments
+## Reconocimientos
 
-- Inspired by the [Caffeine project](https://launchpad.net/caffeine)
-- Uses the same underlying mechanism (`xdg-screensaver`)
+- Inspirado por el [proyecto Caffeine](https://launchpad.net/caffeine)
+- Usa el mismo mecanismo subyacente (`xdg-screensaver`)
